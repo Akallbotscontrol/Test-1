@@ -2,7 +2,7 @@
   <img src="https://envs.sh/232.jpg" alt="RMC-POST-SEARCH-BOT Logo">
 </p>
 <h1 align="center">
-  VJ POST SEARCH BOT
+  RMC POST SEARCH BOT
 </h1>
 
 ## Deploy Tutorial - [Video Link](https://youtu.be/ODGrhh1L0ls)
