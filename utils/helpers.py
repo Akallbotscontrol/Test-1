@@ -1,21 +1,17 @@
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
-
-import asyncio 
+import asyncio
 from info import *
-from pyrogram import enums
+from pyrogram import enums, filters
 from imdb import Cinemagoer
 from pymongo.errors import DuplicateKeyError
-from pyrogram.errors import UserNotParticipant
+from pyrogram.errors import UserNotParticipant, FloodWait, InputUserDeactivated, UserIsBlocked, PeerIdInvalid
 from motor.motor_asyncio import AsyncIOMotorClient
 from pyrogram.types import ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
 
 dbclient = AsyncIOMotorClient(DATABASE_URI)
-db       = dbclient["Channel-Filter"]
-grp_col  = db["GROUPS"]
+db = dbclient["Channel-Filter"]
+grp_col = db["GROUPS"]
 user_col = db["USERS"]
-dlt_col  = db["Auto-Delete"]
+dlt_col = db["Auto-Delete"]
 
 ia = Cinemagoer()
 
@@ -31,7 +27,7 @@ async def add_group(group_id, group_name, user_name, user_id, channels, f_sub, v
 async def get_group(id):
     data = {'_id':id}
     group = await grp_col.find_one(data)
-    return dict(group)
+    return dict(group) if group else None
 
 async def update_group(id, new_data):
     data = {"_id":id}
@@ -81,36 +77,121 @@ async def search_imdb(query):
        return list
 
 async def force_sub(bot, message):
+    """Check if user has joined the channel without banning/restricting"""
     group = await get_group(message.chat.id)
+    if not group:
+        return True  # No group config found, allow message
+    
     f_sub = group["f_sub"]
-    admin = group["user_id"]
-    if f_sub==False:
-       return True
-    if message.from_user is None:
-       return True 
+    if not f_sub:
+        return True  # Force sub not enabled
+    
     try:
-       f_link = (await bot.get_chat(f_sub)).invite_link
-       member = await bot.get_chat_member(f_sub, message.from_user.id)
-       if member.status==enums.ChatMemberStatus.BANNED:
-          await message.reply(f"ꜱᴏʀʀʏ {message.from_user.mention}!\n ʏᴏᴜ ᴀʀᴇ ʙᴀɴɴᴇᴅ ɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ, ʏᴏᴜ ᴡɪʟʟ ʙᴇ ʙᴀɴɴᴇᴅ ꜰʀᴏᴍ ʜᴇʀᴇ ᴡɪᴛʜɪɴ 10 ꜱᴇᴄᴏɴᴅꜱ")
-          await asyncio.sleep(10)
-          await bot.ban_chat_member(message.chat.id, message.from_user.id)
-          return False       
+        # Check user's status in channel
+        member = await bot.get_chat_member(f_sub, message.from_user.id)
+        
+        # Allowed statuses: OWNER, ADMINISTRATOR, MEMBER
+        allowed_statuses = [
+            enums.ChatMemberStatus.OWNER,
+            enums.ChatMemberStatus.ADMINISTRATOR,
+            enums.ChatMemberStatus.MEMBER
+        ]
+        
+        if member.status in allowed_statuses:
+            return True
+            
     except UserNotParticipant:
-       await bot.restrict_chat_member(chat_id=message.chat.id, 
-                                      user_id=message.from_user.id,
-                                      permissions=ChatPermissions(can_send_messages=False)
-                                      )
-       await message.reply(f"<b>🚫 ʜɪ ᴅᴇᴀʀ {message.from_user.mention}!\n\n ɪꜰ ʏᴏᴜ ᴡᴀɴᴛ ᴛᴏ ꜱᴇɴᴅ ᴍᴇꜱꜱᴀɢᴇ ɪɴ ᴛʜɪꜱ ɢʀᴏᴜᴘ.. ᴛʜᴇɴ ꜰɪʀꜱᴛ ʏᴏᴜ ʜᴀᴠᴇ ᴛᴏ ᴊᴏɪɴ ᴏᴜʀ ᴄʜᴀɴɴᴇʟ ᴛᴏ ᴍᴇꜱꜱᴀɢᴇ ʜᴇʀᴇ 💯</b>", 
-                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ ✅", url=f_link)],
-                                                          [InlineKeyboardButton("🌀 ᴛʀʏ ᴀɢᴀɪɴ 🌀", callback_data=f"checksub_{message.from_user.id}")]]))
-       await message.delete()
-       return False
+        # User hasn't joined the channel
+        pass
     except Exception as e:
-       await bot.send_message(chat_id=admin, text=f"❌ Error in Fsub:\n`{str(e)}`")
-       return False 
-    else:
-       return True 
+        # Log error but allow the message to avoid disruption
+        admin = group["user_id"]
+        await bot.send_message(admin, f"❌ Error in Fsub:\n`{str(e)}`")
+        return True
+    
+    # User hasn't joined the channel - show join prompt
+    try:
+        f_link = (await bot.get_chat(f_sub)).invite_link
+        await message.reply(
+            f"<b>🚫 Hi {message.from_user.mention}!</b>\n\n"
+            "📌 To use this bot, please join our channel first\n\n"
+            "👉 After joining, click the 'Try Again' button below",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Join Channel", url=f_link)],
+                [InlineKeyboardButton("🔄 Try Again", callback_data=f"checksub_{message.from_user.id}")]
+            ]),
+            quote=True
+        )
+    except Exception as e:
+        admin = group["user_id"]
+        await bot.send_message(admin, f"❌ Error sending Fsub message:\n`{str(e)}`")
+    
+    return False
+
+@bot.on_callback_query(filters.regex(r"^checksub_(\d+)$"))
+async def checksub_callback(client, callback_query):
+    """Handle 'Try Again' button clicks"""
+    user_id = int(callback_query.matches[0].group(1))
+    
+    # Verify the clicker is the same user
+    if callback_query.from_user.id != user_id:
+        await callback_query.answer("This button is not for you!", show_alert=True)
+        return
+    
+    chat_id = callback_query.message.chat.id
+    group = await get_group(chat_id)
+    
+    if not group or not group.get("f_sub"):
+        await callback_query.answer("Force subscription is disabled now!", show_alert=True)
+        await callback_query.message.delete()
+        return
+    
+    f_sub = group["f_sub"]
+    
+    try:
+        # Check user's current status
+        member = await client.get_chat_member(f_sub, user_id)
+        
+        # Allowed statuses
+        allowed_statuses = [
+            enums.ChatMemberStatus.OWNER,
+            enums.ChatMemberStatus.ADMINISTRATOR,
+            enums.ChatMemberStatus.MEMBER
+        ]
+        
+        if member.status in allowed_statuses:
+            # User has joined - update message
+            await callback_query.message.edit_text(
+                f"✅ Thanks for joining {callback_query.from_user.mention}!\n"
+                "You can now use the bot normally",
+                reply_markup=None
+            )
+            await callback_query.answer("Verification successful!", show_alert=False)
+            
+            # Delete the message after 5 seconds
+            await asyncio.sleep(5)
+            await callback_query.message.delete()
+            return
+    except Exception as e:
+        # Log error but proceed to show join prompt
+        admin = group["user_id"]
+        await client.send_message(admin, f"❌ Checksub error:\n`{str(e)}`")
+    
+    # User still hasn't joined - show updated prompt
+    try:
+        f_link = (await client.get_chat(f_sub)).invite_link
+        await callback_query.message.edit_text(
+            f"<b>🚫 Hi {callback_query.from_user.mention}!</b>\n\n"
+            "📌 You still haven't joined our channel\n\n"
+            "👉 Please join using the button below, then click 'Try Again'",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Join Channel", url=f_link)],
+                [InlineKeyboardButton("🔄 Try Again", callback_data=f"checksub_{user_id}")]
+            ])
+        )
+        await callback_query.answer("Please join the channel first!", show_alert=True)
+    except Exception as e:
+        await callback_query.answer("Error updating message. Please try again.", show_alert=True)
 
 async def broadcast_messages(user_id, message):
     try:
@@ -120,14 +201,14 @@ async def broadcast_messages(user_id, message):
         await asyncio.sleep(e.x)
         return await broadcast_messages(user_id, message)
     except InputUserDeactivated:
-        await db.delete_user(int(user_id))
+        await delete_user(int(user_id))
         logging.info(f"{user_id}-Removed from Database, since deleted account.")
         return False, "Deleted"
     except UserIsBlocked:
         logging.info(f"{user_id} -Blocked the bot.")
         return False, "Blocked"
     except PeerIdInvalid:
-        await db.delete_user(int(user_id))
+        await delete_user(int(user_id))
         logging.info(f"{user_id} - PeerIdInvalid")
         return False, "Error"
     except Exception as e:
