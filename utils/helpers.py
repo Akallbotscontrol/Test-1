@@ -1,6 +1,6 @@
 import asyncio
 from info import *
-from pyrogram import enums, filters  # Add filters import
+from pyrogram import enums, filters
 from imdb import Cinemagoer
 from pymongo.errors import DuplicateKeyError
 from pyrogram.errors import UserNotParticipant, FloodWait, InputUserDeactivated, UserIsBlocked, PeerIdInvalid
@@ -15,64 +15,201 @@ dlt_col = db["Auto-Delete"]
 
 ia = Cinemagoer()
 
-# ... (keep existing functions: add_group, get_group, update_group, etc) ...
+async def add_group(group_id, group_name, user_name, user_id, channels, f_sub, verified):
+    data = {"_id": group_id, "name":group_name, 
+            "user_id":user_id, "user_name":user_name,
+            "channels":channels, "f_sub":f_sub, "verified":verified}
+    try:
+       await grp_col.insert_one(data)
+    except DuplicateKeyError:
+       pass
+
+async def get_group(id):
+    data = {'_id':id}
+    group = await grp_col.find_one(data)
+    return dict(group) if group else None
+
+async def update_group(id, new_data):
+    data = {"_id":id}
+    new_value = {"$set": new_data}
+    await grp_col.update_one(data, new_value)
+
+async def delete_group(id):
+    data = {"_id":id}
+    await grp_col.delete_one(data)
+    
+async def delete_user(id):
+    data = {"_id":id}
+    await user_col.delete_one(data)
+
+async def get_groups():
+    count  = await grp_col.count_documents({})
+    cursor = grp_col.find({})
+    list   = await cursor.to_list(length=int(count))
+    return count, list
+
+async def add_user(id, name):
+    data = {"_id":id, "name":name}
+    try:
+       await user_col.insert_one(data)
+    except DuplicateKeyError:
+       pass
+
+async def get_users():
+    count  = await user_col.count_documents({})
+    cursor = user_col.find({})
+    list   = await cursor.to_list(length=int(count))
+    return count, list
+
+async def search_imdb(query):
+    try:
+       int(query)
+       movie = ia.get_movie(query)
+       return movie["title"]
+    except:
+       movies = ia.search_movie(query, results=10)
+       list = []
+       for movie in movies:
+           title = movie["title"]
+           try: year = f" - {movie['year']}"
+           except: year = ""
+           list.append({"title":title, "year":year, "id":movie.movieID})
+       return list
 
 async def force_sub(bot, message):
-    # ... (existing force_sub function) ...
+    """Check if user has joined the channel without banning/restricting"""
+    group = await get_group(message.chat.id)
+    if not group:
+        return True  # No group config found, allow message
+    
+    f_sub = group["f_sub"]
+    if not f_sub:
+        return True  # Force sub not enabled
+    
+    try:
+        # Check user's status in channel
+        member = await bot.get_chat_member(f_sub, message.from_user.id)
+        
+        # Allowed statuses: OWNER, ADMINISTRATOR, MEMBER
+        allowed_statuses = [
+            enums.ChatMemberStatus.OWNER,
+            enums.ChatMemberStatus.ADMINISTRATOR,
+            enums.ChatMemberStatus.MEMBER
+        ]
+        
+        if member.status in allowed_statuses:
+            return True
+            
+    except UserNotParticipant:
+        # User hasn't joined the channel
+        pass
+    except Exception as e:
+        # Log error but allow the message to avoid disruption
+        admin = group["user_id"]
+        await bot.send_message(admin, f"❌ Error in Fsub:\n`{str(e)}`")
+        return True
+    
+    # User hasn't joined the channel - show join prompt
+    try:
+        f_link = (await bot.get_chat(f_sub)).invite_link
+        await message.reply(
+            f"<b>🚫 Hi {message.from_user.mention}!</b>\n\n"
+            "📌 To use this bot, please join our channel first\n\n"
+            "👉 After joining, click the 'Try Again' button below",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Join Channel", url=f_link)],
+                [InlineKeyboardButton("🔄 Try Again", callback_data=f"checksub_{message.from_user.id}")]
+            ]),
+            quote=True
+        )
+    except Exception as e:
+        admin = group["user_id"]
+        await bot.send_message(admin, f"❌ Error sending Fsub message:\n`{str(e)}`")
+    
+    return False
 
-# Callback handler for "Try Again" button
 @bot.on_callback_query(filters.regex(r"^checksub_(\d+)$"))
 async def checksub_callback(client, callback_query):
+    """Handle 'Try Again' button clicks"""
     user_id = int(callback_query.matches[0].group(1))
+    
+    # Verify the clicker is the same user
+    if callback_query.from_user.id != user_id:
+        await callback_query.answer("This button is not for you!", show_alert=True)
+        return
+    
     chat_id = callback_query.message.chat.id
     group = await get_group(chat_id)
     
     if not group or not group.get("f_sub"):
-        await callback_query.answer("Force subscription is disabled!", show_alert=True)
+        await callback_query.answer("Force subscription is disabled now!", show_alert=True)
+        await callback_query.message.delete()
         return
-
+    
     f_sub = group["f_sub"]
+    
     try:
-        # Get updated channel invite link
-        f_link = (await client.get_chat(f_sub)).invite_link
-        
-        # Check user's status in channel
+        # Check user's current status
         member = await client.get_chat_member(f_sub, user_id)
         
-        if member.status == enums.ChatMemberStatus.BANNED:
-            await callback_query.answer("You're banned in our channel!", show_alert=True)
-            await asyncio.sleep(10)
-            await client.ban_chat_member(chat_id, user_id)
-            await callback_query.message.edit_text("🚫 User banned for being banned in channel")
-            return
-            
-        if member.status in (enums.ChatMemberStatus.OWNER, 
-                            enums.ChatMemberStatus.ADMINISTRATOR, 
-                            enums.ChatMemberStatus.MEMBER):
-            # Unrestrict user
-            await client.restrict_chat_member(
-                chat_id=chat_id,
-                user_id=user_id,
-                permissions=ChatPermissions(
-                    can_send_messages=True,
-                    can_send_media_messages=True,
-                    can_send_other_messages=True,
-                    can_add_web_page_previews=True
-                )
-            )
-            # Update success message
+        # Allowed statuses
+        allowed_statuses = [
+            enums.ChatMemberStatus.OWNER,
+            enums.ChatMemberStatus.ADMINISTRATOR,
+            enums.ChatMemberStatus.MEMBER
+        ]
+        
+        if member.status in allowed_statuses:
+            # User has joined - update message
             await callback_query.message.edit_text(
-                f"✅ Thanks for joining! You can now send messages.",
+                f"✅ Thanks for joining {callback_query.from_user.mention}!\n"
+                "You can now use the bot normally",
                 reply_markup=None
             )
-        else:
-            await callback_query.answer("❌ Still not joined! Join first.", show_alert=True)
+            await callback_query.answer("Verification successful!", show_alert=False)
             
-    except UserNotParticipant:
-        await callback_query.answer("❌ Still not joined! Join first.", show_alert=True)
+            # Delete the message after 5 seconds
+            await asyncio.sleep(5)
+            await callback_query.message.delete()
+            return
     except Exception as e:
-        await callback_query.answer("⚠️ Error checking status. Try again.", show_alert=True)
-        admin_id = group["user_id"]
-        await client.send_message(admin_id, f"❌ Checksub error:\n`{str(e)}`")
+        # Log error but proceed to show join prompt
+        admin = group["user_id"]
+        await client.send_message(admin, f"❌ Checksub error:\n`{str(e)}`")
+    
+    # User still hasn't joined - show updated prompt
+    try:
+        f_link = (await client.get_chat(f_sub)).invite_link
+        await callback_query.message.edit_text(
+            f"<b>🚫 Hi {callback_query.from_user.mention}!</b>\n\n"
+            "📌 You still haven't joined our channel\n\n"
+            "👉 Please join using the button below, then click 'Try Again'",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Join Channel", url=f_link)],
+                [InlineKeyboardButton("🔄 Try Again", callback_data=f"checksub_{user_id}")]
+            ])
+        )
+        await callback_query.answer("Please join the channel first!", show_alert=True)
+    except Exception as e:
+        await callback_query.answer("Error updating message. Please try again.", show_alert=True)
 
-# ... (keep existing broadcast_messages function) ...
+async def broadcast_messages(user_id, message):
+    try:
+        await message.copy(chat_id=user_id)
+        return True, "Success"
+    except FloodWait as e:
+        await asyncio.sleep(e.x)
+        return await broadcast_messages(user_id, message)
+    except InputUserDeactivated:
+        await delete_user(int(user_id))
+        logging.info(f"{user_id}-Removed from Database, since deleted account.")
+        return False, "Deleted"
+    except UserIsBlocked:
+        logging.info(f"{user_id} -Blocked the bot.")
+        return False, "Blocked"
+    except PeerIdInvalid:
+        await delete_user(int(user_id))
+        logging.info(f"{user_id} - PeerIdInvalid")
+        return False, "Error"
+    except Exception as e:
+        return False, "Error"
