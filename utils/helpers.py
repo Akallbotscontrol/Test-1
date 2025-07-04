@@ -94,7 +94,8 @@ async def re_enable_chat(bot, message):
     await message.reply("Chat Successfully re-enabled")
 
 
-@Client.on_message(filters.command('stats') & filters.incoming))
+# FIXED LINE: Extra parenthesis removed
+@Client.on_message(filters.command('stats') & filters.incoming)
 async def get_ststs(bot, message):
     rju = await message.reply('Fetching stats..')
     total_users = await db.total_users_count()
@@ -176,7 +177,6 @@ async def get_tutorial(chat_id):
     # ... (rest of the function remains)
     pass
 
-# Changed: Removed @bot.on_callback_query decorator
 async def checksub_callback(client, callback_query):
     query = callback_query
     user_id = int(query.data.split("_")[1])
@@ -204,7 +204,6 @@ async def checksub_callback(client, callback_query):
         text=f"Thank you for joining! Now you can start using the bot."
     )
 
-# Changed: Removed @bot.on_message decorator
 async def button(client, msg):
     if msg.text.startswith('/'):
         return
@@ -212,12 +211,10 @@ async def button(client, msg):
     if data == "close":
         await msg.message.delete()
 
-# Changed: Removed @bot.on_message decorator
 async def auto_filter(client, msg, spoll=False):
     # ... (rest of the function remains unchanged)
     pass
 
-# Changed: Removed @bot.on_message decorator
 async def global_filters(client, message, text=False):
     # ... (rest of the function remains unchanged)
     pass
