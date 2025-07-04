@@ -84,11 +84,12 @@ async def search(bot, message):
             InlineKeyboardButton("🔍 Google", url=f"https://www.google.com/search?q={clean}"),
             InlineKeyboardButton("📬 Request Admin", callback_data=f"req_{message.id}")
         ]]
-        sent = await message.reply_photo(
-            photo="https://www.imghippo.com/i/CrF9619b.jpg",
-            caption=f"❌ No results found for: <code>{query}</code>\nTry different keywords or ask admin.",
-            reply_markup=InlineKeyboardMarkup(btn)
-        )
+        sent = await message.reply(
+    f"❌ No results found for: <code>{query}</code>\nTry different keywords or ask admin.",
+    reply_markup=InlineKeyboardMarkup(button),
+    disable_web_page_preview=True
+)
+
         asyncio.create_task(delete_after_delay(sent))
 
 @Client.on_callback_query(filters.regex("^checksub_"))
