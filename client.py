@@ -1,9 +1,7 @@
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
-
 from info import *
-from pyrogram import Client
+from pyrogram import Client, filters
+from pyrogram.handlers import CallbackQueryHandler
+from utils.helpers import checksub_callback  # नया इम्पोर्ट जोड़ा
 
 class Bot(Client):   
     def __init__(self):
@@ -13,8 +11,17 @@ class Bot(Client):
             api_hash=API_HASH,           
             bot_token=BOT_TOKEN,
             plugins={"root": "plugins"})
+            
     async def start(self):                        
-        await super().start()  
+        await super().start()
+        
+        # यह नया कोड जोड़ें (कॉलबैक हैंडलर रजिस्टर करने के लिए)
+        self.add_handler(CallbackQueryHandler(
+            checksub_callback,
+            filters.regex(r"^checksub_(\d+)$")
+        ))
+        
         print("Bot Started 🔧 Powered By @VJ_Botz")   
+        
     async def stop(self, *args):
         await super().stop()
