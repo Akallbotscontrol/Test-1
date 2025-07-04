@@ -16,7 +16,7 @@ async def user_counter(bot, message: Message):
     for user in users:
         name = user.get('name', None)
         user_id = user.get('_id', 'Unknown ID')
-        username = f"{name}" if name else "Unknown"
+        username = f"@{name}" if name else "Unknown"
         text += f"{username} | <code>{user_id}</code>\n"
     
     await message.reply(text)
