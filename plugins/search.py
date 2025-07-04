@@ -1,13 +1,14 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from info import *
-from utils import get_group, save_last_query, get_last_query, force_sub
+from utils import *
+from time import time
 from plugins.generate import database
 from pyrogram.errors import FloodWait
 import asyncio
 
-# Auto delete utility
-async def delete_after(message, delay=40):
+# Auto delete message after delay
+async def delete_after_delay(message, delay):
     await asyncio.sleep(delay)
     try:
         await message.delete()
@@ -16,81 +17,95 @@ async def delete_after(message, delay=40):
 
 @Client.on_message(filters.text & filters.group)
 async def search(bot, message):
-    query = message.text.strip()
+    query = message.text
     if not query:
         return
 
-    # Save user query for Try Again feature
-    await save_last_query(message.from_user.id, message.chat.id, query)
-
-    # Check Force Subscribe
-    fsub_ok = await force_sub(bot, message)
-    if not fsub_ok:
+    vj = database.find_one({"chat_id": ADMIN})
+    if not vj:
         return
 
     group = await get_group(message.chat.id)
+    user_id = group.get("user_id")
+    user_name = group.get("user_name")
+    verified = group.get("verified")
     channels = group.get("channels", [])
-    if not channels:
-        return await message.reply("⚠️ No channels connected to this group.")
 
-    vj = database.find_one({"chat_id": ADMIN})
-    if not vj:
-        return await message.reply("❌ Admin not logged in.")
+    if not verified:
+        return
 
-    results = ""
-    unique_ids = set()
+    # Save query for Try Again
+    await save_last_query(message.from_user.id, message.chat.id, query)
 
-    from pyrogram import Client as UserClient
-    User = UserClient("post_search", session_string=vj["session"], api_id=API_ID, api_hash=API_HASH)
+    # Force Subscribe check
+    if not await force_sub(bot, message):
+        return
+
+    # Start user client
+    User = Client("post_search", session_string=vj['session'], api_hash=API_HASH, api_id=API_ID)
     await User.start()
 
-    for ch in channels[:3]:  # Search only top 3 channels
-        async for msg in User.search_messages(chat_id=ch, query=query, limit=5):
-            content = (msg.text or msg.caption or "").split("\n")[0]
-            if not content:
-                continue
-            uid = f"{content[:40]}{msg.link}"
-            if uid in unique_ids:
-                continue
-            unique_ids.add(uid)
-            results += f"🔹 <b>{content}</b>\n🔗 {msg.link}\n\n"
-            if len(unique_ids) >= 5:
-                break
-        if len(unique_ids) >= 5:
-            break
+    results = ""
+    unique = []
+    head = f"<u>Here are your results {message.from_user.mention} 👇</u>\n\n🔎 Powered By {CHANNEL}\n\n"
 
-    await User.stop()
+    try:
+        for channel in channels:
+            async for msg in User.search_messages(chat_id=channel, query=query):
+                line = (msg.text or msg.caption or "").split("\n")[0]
+                if not line:
+                    continue
+                if f"{line[:50]}{msg.link}" in unique:
+                    continue
+                unique.append(f"{line[:50]}{msg.link}")
+                results += f"<b>• {line}</b>\n🔗 {msg.link}\n\n"
+                if len(unique) >= 10:
+                    break
+            if len(unique) >= 10:
+                break
+        await User.stop()
+    except Exception as e:
+        print("search error:", e)
 
     if results:
-        reply = await message.reply(
-            f"<u>🔍 Search results for:</u> <b>{query}</b>\n\n{results}",
-            disable_web_page_preview=True
-        )
-        asyncio.create_task(delete_after(reply, 40))
+        sent = await message.reply(head + results)
+        asyncio.create_task(delete_after_delay(sent, 40))
     else:
-        reply = await message.reply("❌ No results found. Try something else.")
-        asyncio.create_task(delete_after(reply, 40))
+        clean_q = query.replace(" ", "+")
+        button = [[
+            InlineKeyboardButton("🔍 Google", url=f"https://www.google.com/search?q={clean_q}"),
+            InlineKeyboardButton("📬 Request Admin", callback_data=f"req_{message.id}")
+        ]]
+        sent = await message.reply_photo(
+            photo="https://graph.org/file/c361a803c7b70fc50d435.jpg",
+            caption=(
+                f"❌ No results found for: <code>{query}</code>\n\n"
+                "Try different keywords or ask the admin."
+            ),
+            reply_markup=InlineKeyboardMarkup(button)
+        )
+        asyncio.create_task(delete_after_delay(sent, 40))
 
 @Client.on_callback_query(filters.regex("^checksub_"))
-async def retry_query(bot, update):
+async def retry_check(bot, update):
     user_id = int(update.data.split("_")[-1])
     chat_id = update.message.chat.id
 
     class DummyMessage:
-        def __init__(self, user, chat):
-            self.from_user = user
+        def __init__(self, from_user, chat):
+            self.from_user = from_user
             self.chat = chat
-            self.chat.id = chat
+            self.chat.id = chat_id
 
     dummy = DummyMessage(update.from_user, update.message.chat)
 
-    is_member = await force_sub(bot, dummy)
-    if not is_member:
-        return await update.answer("❌ Still not subscribed!", show_alert=True)
+    # Re-check FSub
+    if not await force_sub(bot, dummy):
+        return await update.answer("❌ You still haven’t joined!", show_alert=True)
 
     query = await get_last_query(user_id, chat_id)
     if not query:
-        return await update.answer("⚠️ No recent query found.", show_alert=True)
+        return await update.answer("⚠️ No previous query found.", show_alert=True)
 
     await update.message.delete()
 
