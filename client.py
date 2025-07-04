@@ -1,7 +1,7 @@
 from info import *
 from pyrogram import Client, filters
 from pyrogram.handlers import CallbackQueryHandler
-from utils.helpers import checksub_callback  # नया इम्पोर्ट जोड़ा
+from utils.helpers import checksub_callback
 
 class Bot(Client):   
     def __init__(self):
@@ -15,7 +15,7 @@ class Bot(Client):
     async def start(self):                        
         await super().start()
         
-        # यह नया कोड जोड़ें (कॉलबैक हैंडलर रजिस्टर करने के लिए)
+        # नया कोड: कॉलबैक हैंडलर रजिस्टर करें
         self.add_handler(CallbackQueryHandler(
             checksub_callback,
             filters.regex(r"^checksub_(\d+)$")
