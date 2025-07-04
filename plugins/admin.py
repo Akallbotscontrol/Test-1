@@ -5,31 +5,29 @@ from pyrogram.errors import FloodWait, InputUserDeactivated, UserIsBlocked, Peer
 from pyrogram.types import Message
 import asyncio
 
-# /userc - List users with @username
+# /userc - List users with @username and ID
 @Client.on_message(filters.command("userc") & filters.user(ADMIN))
 async def user_counter(bot, message: Message):
     total, users = await get_users()
-
     if total == 0:
         return await message.reply("😕 No users found in database.")
-
+    
     text = f"📊 Total Users: <b>{total}</b>\n\n"
     for user in users:
         name = user.get('name', None)
+        user_id = user.get('_id', 'Unknown ID')
         username = f"@{name}" if name else "Unknown"
-        text += f"{username}\n"
-
+        text += f"{username} | <code>{user_id}</code>\n"
+    
     await message.reply(text)
-
 
 # /groupc - List groups with link
 @Client.on_message(filters.command("groupc") & filters.user(ADMIN))
 async def group_counter(bot, message: Message):
     total, groups = await get_groups()
-
     if total == 0:
         return await message.reply("📭 No groups found in database.")
-
+    
     text = f"👥 Total Groups: <b>{total}</b>\n\n"
     count = 1
     for group in groups:
@@ -44,7 +42,6 @@ async def group_counter(bot, message: Message):
 
     await message.reply(text, disable_web_page_preview=True)
 
-
 # /broadcast - Send to all users
 @Client.on_message(filters.command("broadcast") & filters.user(ADMIN))
 async def broadcast_message(bot, message: Message):
@@ -53,7 +50,6 @@ async def broadcast_message(bot, message: Message):
 
     reply_msg = message.reply_to_message
     users_count, users = await get_users()
-
     sent = await message.reply("⚡ Broadcasting started...")
     total = users_count
     success = 0
@@ -78,7 +74,6 @@ async def broadcast_message(bot, message: Message):
 
     await sent.edit(f"✅ Broadcast Completed!\n\n📬 Total: {total}\n✅ Success: {success}\n❌ Failed: {failed}")
 
-
 # /broadcast_groups - Send to all groups
 @Client.on_message(filters.command("broadcast_groups") & filters.user(ADMIN))
 async def broadcast_groups(bot, message: Message):
@@ -87,7 +82,6 @@ async def broadcast_groups(bot, message: Message):
 
     reply_msg = message.reply_to_message
     group_count, groups = await get_groups()
-
     sent = await message.reply("⚡ Group broadcast started...")
     total = group_count
     success = 0
