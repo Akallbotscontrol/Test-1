@@ -73,7 +73,8 @@ async def search(bot, message):
 
     if results:
         sent = await message.reply(
-            f"<u>Here are your results {message.from_user.mention} 👇</u>\n\n{results}",
+            f"<u>Here are your results {message.from_user.mention} 👇</u>\n\n🔎 Powered By {CHANNEL}\n\n{results}",
+
             disable_web_page_preview=True
         )
         asyncio.create_task(delete_after_delay(sent))
