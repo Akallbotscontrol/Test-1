@@ -88,6 +88,7 @@ async def search(bot, message):
 
     await notify.delete()
 
+
 @Client.on_callback_query(filters.regex("^checksub_"))
 async def retry(bot, update):
     user_id = int(update.data.split("_")[-1])
@@ -110,10 +111,10 @@ async def retry(bot, update):
 
     await update.message.delete()
 
+    # ✅ Show Searching Message — FIXED
     notify = await bot.send_message(
         chat_id=chat_id,
-        text=f"🔍 Searching for: `{query}`",
-        reply_to_message_id=update.message.message_id,
+        text=f"🔍 Searching for: `{query}`"
     )
 
     fake = update.message
