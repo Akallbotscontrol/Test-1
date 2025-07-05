@@ -5,15 +5,16 @@ from utils import *
 from plugins.generate import database
 from pyrogram.errors import FloodWait
 import asyncio
+from urllib.parse import quote_plus
 
-# Commands to ignore during search
+# Commands to exclude from search
 IGNORED_COMMANDS = [
     "start", "id", "verify", "connect", "disconnect",
     "fsub", "nofsub", "connections", "stats", "userc",
     "login", "logout"
 ]
 
-# Auto-delete reply after delay
+# Auto-delete message
 async def delete_after_delay(message, delay=40):
     await asyncio.sleep(delay)
     try:
@@ -30,20 +31,23 @@ async def search(bot, message):
     # Save last query for Try Again
     await save_last_query(message.from_user.id, message.chat.id, query)
 
-    # FSub check
+    # Force Subscribe check
     if not await force_sub(bot, message):
         return
 
+    # 🔍 Show "Searching for..." message
+    notify = await message.reply(f"🔍 Searching for: `{query}`")
+
     vj = database.find_one({"chat_id": ADMIN})
     if not vj:
-        return
+        return await notify.delete()
 
     group = await get_group(message.chat.id)
     verified = group.get("verified")
     channels = group.get("channels", [])
 
     if not verified or not channels:
-        return
+        return await notify.delete()
 
     from pyrogram import Client as UserClient
     User = UserClient("post_search", session_string=vj["session"], api_id=API_ID, api_hash=API_HASH)
@@ -70,6 +74,7 @@ async def search(bot, message):
         await User.stop()
     except Exception as e:
         print("Search error:", e)
+        await notify.delete()
 
     if results:
         sent = await message.reply(
@@ -78,17 +83,20 @@ async def search(bot, message):
         )
         asyncio.create_task(delete_after_delay(sent))
     else:
-        clean = query.replace(" ", "+")
-        button = [[
+        clean = quote_plus(query)
+        btn = [[
             InlineKeyboardButton("🔍 Google", url=f"https://www.google.com/search?q={clean}"),
             InlineKeyboardButton("📬 Request Admin", callback_data=f"req_{message.id}")
         ]]
-        sent = await message.reply(
-            f"❌ No results found for: <code>{query}</code>\nTry different keywords or ask admin.",
-            reply_markup=InlineKeyboardMarkup(button),
-            disable_web_page_preview=True
+        sent = await message.reply_photo(
+            photo="https://envs.sh/2tj.jpg",
+            caption=f"❌ No results found for: <code>{query}</code>\nTry different keywords or ask admin.",
+            reply_markup=InlineKeyboardMarkup(btn)
         )
         asyncio.create_task(delete_after_delay(sent))
+
+    await notify.delete()
+
 
 @Client.on_callback_query(filters.regex("^checksub_"))
 async def retry(bot, update):
@@ -112,7 +120,17 @@ async def retry(bot, update):
 
     await update.message.delete()
 
+    # 🔍 Show "Searching for: ..." when retrying
+    notify = await bot.send_message(
+        chat_id=chat_id,
+        text=f"🔍 Searching for: `{query}`",
+        reply_to_message_id=update.message.message_id,
+    )
+
+    # Simulate manual search message
     fake = update.message
     fake.text = query
     fake.from_user = update.from_user
+
     await search(bot, fake)
+    await notify.delete()
