@@ -1,6 +1,3 @@
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
 
 class script(object):
     START = """**ʜᴇʟʟᴏ {} 🤟**
@@ -11,7 +8,7 @@ class script(object):
     HELP = """<b>💢 ʜᴏᴡ ᴛᴏ ᴜsᴇ ᴍᴇ ɪɴ ᴀ ɢʀᴏᴜᴘ
 
 🔻 ᴀᴅᴅ ᴍᴇ ɪɴ ʏᴏᴜʀ ɢʀᴏᴜᴘ & ᴄʜᴀɴɴᴇʟ ᴡɪᴛʜ ᴀʟʟ ᴘᴇʀᴍɪssɪᴏɴs. 
-🔻 sᴇɴᴅ /verify ɪɴ ɢʀᴏᴜᴘ & ᴡᴀɪᴛ ғᴏʀ ɪᴛ ᴛᴏ ᴀᴄᴄᴇᴘᴛ ᴏʀ ᴅɪʀᴇᴄᴛʟʏ ᴄᴏɴᴛᴀᴄᴛ ᴛᴏ ᴏᴡɴᴇʀ ᴀғᴛᴇʀ ʀᴇǫᴜᴇsᴛ @VJBots_bot.
+🔻 sᴇɴᴅ /verify ɪɴ ɢʀᴏᴜᴘ & ᴡᴀɪᴛ ғᴏʀ ɪᴛ ᴛᴏ ᴀᴄᴄᴇᴘᴛ ᴏʀ ᴅɪʀᴇᴄᴛʟʏ ᴄᴏɴᴛᴀᴄᴛ ᴛᴏ ᴏᴡɴᴇʀ ᴀғᴛᴇʀ ʀᴇǫᴜᴇsᴛ @MR_ABHAY_K.
 🔻 ᴀғᴛᴇʀ ᴠᴇʀɪғɪᴄᴀᴛɪᴏɴ sᴇɴᴅ /connect ʏᴏᴜʀᴄʜᴀɴɴᴇʟɪᴅ. ( ғᴏʀ ᴍᴜʟᴛɪᴘʟᴇ ᴄʜᴀɴɴᴇʟs ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ ᴍᴜʟᴛɪᴘʟᴇ ᴛɪᴍᴇs )
 🔻 ᴇxᴀᴍᴘʟᴇ : /connect -100xxxxxxxxxx
 
@@ -28,7 +25,7 @@ class script(object):
     ABOUT = """<b>╭━━━━━━━❰ [𝙰𝙱𝙾𝚄𝚃](https://t.me/VJ_Botz) ❱━━━━━━━➣
 
 ┣ ✯ Mʏ Nᴀᴍᴇ:  {}
-┣ ✯ Cʀᴇᴀᴛᴏʀ: <a href='https://t.me/ABHAKENWAT'>MR. ABHAY</a>
+┣ ✯ Cʀᴇᴀᴛᴏʀ: <a href='https://t.me/MR_ABHAY_K'>MR. ABHAY</a>
 ┣ ✯ Lᴀɴɢᴜᴀɢᴇ: <a href='https://www.python.org'>Pʏᴛʜᴏɴ 3</a>
 ┣ ✯ DᴀᴛᴀBᴀsᴇ: <a href='https://cloud.mongodb.com/'>MᴏɴɢᴏDB</a></b>"""
 
